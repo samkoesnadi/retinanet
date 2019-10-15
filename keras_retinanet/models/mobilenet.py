@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 import keras
-from keras.applications import mobilenet
+from keras.applications import mobilenet_v2
 from keras.utils import get_file
 from ..utils.image import preprocess_image
 
@@ -33,35 +33,6 @@ class MobileNetBackbone(Backbone):
         """ Returns a retinanet model using the correct backbone.
         """
         return mobilenet_retinanet(*args, backbone=self.backbone, **kwargs)
-
-    def download_imagenet(self):
-        """ Download pre-trained weights for the specified backbone name.
-        This name is in the format mobilenet{rows}_{alpha} where rows is the
-        imagenet shape dimension and 'alpha' controls the width of the network.
-        For more info check the explanation from the keras mobilenet script itself.
-        """
-
-        alpha = float(self.backbone.split('_')[1])
-        rows = int(self.backbone.split('_')[0].replace('mobilenet', ''))
-
-        # load weights
-        if keras.backend.image_data_format() == 'channels_first':
-            raise ValueError('Weights for "channels_last" format '
-                             'are not available.')
-        if alpha == 1.0:
-            alpha_text = '1_0'
-        elif alpha == 0.75:
-            alpha_text = '7_5'
-        elif alpha == 0.50:
-            alpha_text = '5_0'
-        else:
-            alpha_text = '2_5'
-
-        model_name = 'mobilenet_{}_{}_tf_no_top.h5'.format(alpha_text, rows)
-        weights_url = mobilenet.mobilenet.BASE_WEIGHT_PATH + model_name
-        weights_path = get_file(model_name, weights_url, cache_subdir='models')
-
-        return weights_path
 
     def validate(self):
         """ Checks whether the backbone string is correct.
@@ -95,10 +66,10 @@ def mobilenet_retinanet(num_classes, backbone='mobilenet224_1.0', inputs=None, m
     if inputs is None:
         inputs = keras.layers.Input((None, None, 3))
 
-    backbone = mobilenet.MobileNet(input_tensor=inputs, alpha=alpha, include_top=False, pooling=None, weights=None)
+    backbone = mobilenet_v2.MobileNetV2(input_tensor=inputs, alpha=alpha, include_top=False, pooling=None, weights="imagenet")
 
     # create the full model
-    layer_names = ['conv_pw_5_relu', 'conv_pw_11_relu', 'conv_pw_13_relu']
+    layer_names = ['block_5_add', 'block_12_add', 'out_relu']  # TODO: please check whether the name is correct or not
     layer_outputs = [backbone.get_layer(name).output for name in layer_names]
     backbone = keras.models.Model(inputs=inputs, outputs=layer_outputs, name=backbone.name)
 
