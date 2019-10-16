@@ -52,7 +52,7 @@ def default_classification_model(
     else:
         inputs  = keras.layers.Input(shape=(None, None, pyramid_feature_size))
     outputs = inputs
-    for i in range(4):
+    for i in range(2):
         outputs = keras.layers.Conv2D(
             filters=classification_feature_size,
             activation='relu',
@@ -108,7 +108,7 @@ def default_regression_model(num_values, num_anchors, pyramid_feature_size=256, 
     else:
         inputs  = keras.layers.Input(shape=(None, None, pyramid_feature_size))
     outputs = inputs
-    for i in range(4):
+    for i in range(2):
         outputs = keras.layers.Conv2D(
             filters=regression_feature_size,
             activation='relu',
@@ -137,27 +137,28 @@ def __create_pyramid_features(C3, C4, C5, feature_size=256):
         A list of feature levels [P3, P4, P5, P6, P7].
     """
     # upsample C5 to get P5 from the FPN paper
-    P5           = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C5_reduced')(C5)
-    P5_upsampled = layers.UpsampleLike(name='P5_upsampled')([P5, C4])
-    P5           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P5')(P5)
+    P5_feature_size           = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C5_reduced')(C5)
+    P5_upsampled = layers.UpsampleLike(name='P5_upsampled')([P5_feature_size, C4])
+    P5           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P5', activation="relu")(P5_feature_size)
 
     # add P5 elementwise to C4
     P4           = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C4_reduced')(C4)
     P4           = keras.layers.Add(name='P4_merged')([P5_upsampled, P4])
     P4_upsampled = layers.UpsampleLike(name='P4_upsampled')([P4, C3])
-    P4           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P4')(P4)
+    P4           = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P4', activation="relu")(P4)
 
     # add P4 elementwise to C3
     P3 = keras.layers.Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='C3_reduced')(C3)
     P3 = keras.layers.Add(name='P3_merged')([P4_upsampled, P3])
-    P3 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P3')(P3)
+    P3 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', name='P3', activation="relu")(P3)
 
-    # "P6 is obtained via a 3x3 stride-2 conv on C5"
-    P6 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=2, padding='same', name='P6')(C5)
+    # "P6 is obtained via a 3x3 stride-2 conv on P5_feature_size"
+    P6 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', activation="relu")(P5_feature_size)
+    P6 = keras.layers.MaxPooling2D(name='P6')(P6)
 
     # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
-    P7 = keras.layers.Activation('relu', name='C6_relu')(P6)
-    P7 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=2, padding='same', name='P7')(P7)
+    P7 = keras.layers.Conv2D(feature_size, kernel_size=3, strides=1, padding='same', activation="relu")(P6)
+    P7 = keras.layers.MaxPooling2D(name='P7')(P7)
 
     return [P3, P4, P5, P6, P7]
 
